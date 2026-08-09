@@ -14,7 +14,6 @@ export interface AppConfig {
 }
 
 
-
 export const defaultConfig: AppConfig = {
   version: process.env.APP_VERSION ?? "1.0.0",
   sidecarUrl: process.env.SIDECAR_URL ?? "http://127.0.0.1:8061",
