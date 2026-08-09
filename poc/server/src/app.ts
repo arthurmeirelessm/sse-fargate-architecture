@@ -27,7 +27,6 @@ export const defaultConfig: AppConfig = {
 };
 
 
-
 export function createApp(config: AppConfig = defaultConfig) {
   const app = express();
   app.disable("x-powered-by");
