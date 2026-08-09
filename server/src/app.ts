@@ -13,6 +13,8 @@ export interface AppConfig {
   staticDir?: string;
 }
 
+
+
 export const defaultConfig: AppConfig = {
   version: process.env.APP_VERSION ?? "1.0.0",
   sidecarUrl: process.env.SIDECAR_URL ?? "http://127.0.0.1:8061",
@@ -46,7 +48,7 @@ export function createApp(config: AppConfig = defaultConfig) {
     // Simula um processamento curto (~150ms).
     await new Promise((resolve) => setTimeout(resolve, 150));
     res.json({
-      
+
       message: "Processamento síncrono concluído",
       timestamp: new Date().toISOString(),
       requestId: randomUUID(),

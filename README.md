@@ -204,6 +204,48 @@ aws ecs update-service --cluster sse-poc-cluster \
 
 (Ou use uma `image_tag` nova e rode `make apply`.)
 
+## CI/CD com GitHub Actions
+
+Este repositório inclui dois workflows:
+
+- `.github/workflows/auto-pr-feature.yml`: a cada push em uma branch
+  `feature/**`, abre automaticamente um PR para `main` se ainda não existir.
+- `.github/workflows/deploy-main-ecs.yml`: quando o PR for mergeado na `main`,
+  roda typecheck/test/build, publica as imagens no ECR e força um novo deploy
+  do service ECS.
+
+O merge continua manual: o workflow só abre o PR. O dev revisa e clica em
+**Merge pull request** no GitHub.
+
+### Configuração necessária no GitHub
+
+Em `Settings → Secrets and variables → Actions`, configure:
+
+Secret obrigatório:
+
+```text
+AWS_ROLE_TO_ASSUME=arn:aws:iam::<account-id>:role/<role-oidc-github-actions>
+```
+
+Variables opcionais (os defaults já batem com este POC):
+
+```text
+AWS_REGION=us-east-1
+PROJECT_NAME=sse-poc
+ECS_CLUSTER_NAME=sse-poc-cluster
+ECS_SERVICE_NAME=sse-poc-service
+```
+
+A role `AWS_ROLE_TO_ASSUME` deve confiar no OIDC do GitHub Actions e ter
+permissões para:
+
+- autenticar/publicar imagens no ECR;
+- consultar/atualizar o service ECS;
+- registrar logs normais do workflow não precisa de permissão AWS extra.
+
+Também garanta em `Settings → Actions → General` que o `GITHUB_TOKEN` tenha
+permissão para criar pull requests.
+
 ## O que mudar para produção
 
 Este POC otimiza custo e simplicidade. Para produção:
