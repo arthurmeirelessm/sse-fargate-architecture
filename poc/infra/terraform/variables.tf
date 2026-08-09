@@ -1,0 +1,67 @@
+variable "aws_region" {
+  description = "Região AWS onde o POC será criado"
+  type        = string
+  default     = "us-east-1"
+}
+
+variable "project_name" {
+  description = "Prefixo usado no nome de todos os recursos"
+  type        = string
+  default     = "sse-poc"
+}
+
+variable "enable_custom_domain" {
+  description = "Quando true, cria ACM + Route 53 + HTTPS para subdomain.domain_name. Quando false, usa apenas HTTP pelo DNS público do ALB."
+  type        = bool
+  default     = false
+}
+
+variable "hosted_zone_id" {
+  description = "ID de uma hosted zone pública já existente no Route 53 (obrigatório apenas com enable_custom_domain=true)"
+  type        = string
+  default     = null
+
+  validation {
+    condition     = !var.enable_custom_domain || var.hosted_zone_id != null
+    error_message = "hosted_zone_id é obrigatório quando enable_custom_domain=true."
+  }
+}
+
+variable "domain_name" {
+  description = "Domínio raiz da hosted zone (ex.: seudominio.com). Obrigatório apenas com enable_custom_domain=true."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = !var.enable_custom_domain || var.domain_name != null
+    error_message = "domain_name é obrigatório quando enable_custom_domain=true."
+  }
+}
+
+variable "subdomain" {
+  description = "Subdomínio do POC (ex.: poc → poc.seudominio.com)"
+  type        = string
+  default     = "poc"
+}
+
+variable "image_tag" {
+  description = "Tag das imagens no ECR usadas pela task"
+  type        = string
+  default     = "latest"
+}
+
+variable "log_retention_days" {
+  description = "Retenção (em dias) dos log groups do CloudWatch"
+  type        = number
+  default     = 7
+}
+
+variable "vpc_cidr" {
+  description = "CIDR da VPC de teste"
+  type        = string
+  default     = "10.42.0.0/16"
+}
+
+locals {
+  fqdn = var.enable_custom_domain ? "${var.subdomain}.${var.domain_name}" : null
+}

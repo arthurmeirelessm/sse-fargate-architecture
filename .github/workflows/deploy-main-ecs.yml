@@ -1,0 +1,105 @@
+name: Deploy to ECS
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "poc/**"
+      - ".github/workflows/deploy-main-ecs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  PROJECT_NAME: ${{ vars.PROJECT_NAME || 'sse-poc' }}
+  ECS_CLUSTER_NAME: ${{ vars.ECS_CLUSTER_NAME || 'sse-poc-cluster' }}
+  ECS_SERVICE_NAME: ${{ vars.ECS_SERVICE_NAME || 'sse-poc-service' }}
+
+jobs:
+  deploy:
+    name: Build, push and deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            poc/server/package-lock.json
+            poc/sidecar/package-lock.json
+            poc/client/package-lock.json
+
+      - name: Install dependencies
+        working-directory: poc
+        run: |
+          npm ci --prefix server
+          npm ci --prefix sidecar
+          npm ci --prefix client
+
+      - name: Typecheck and test
+        working-directory: poc
+        run: |
+          npm run typecheck --prefix server
+          npm test --prefix server
+          npm run typecheck --prefix sidecar
+          npm run build --prefix client
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push app image
+        working-directory: poc
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          docker build \
+            -f Dockerfile.app \
+            -t "$ECR_REGISTRY/$PROJECT_NAME-app:latest" \
+            -t "$ECR_REGISTRY/$PROJECT_NAME-app:$IMAGE_TAG_SHA" \
+            .
+
+          docker push "$ECR_REGISTRY/$PROJECT_NAME-app:latest"
+          docker push "$ECR_REGISTRY/$PROJECT_NAME-app:$IMAGE_TAG_SHA"
+
+      - name: Build and push sidecar image
+        working-directory: poc
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          docker build \
+            -t "$ECR_REGISTRY/$PROJECT_NAME-mcp-stub:latest" \
+            -t "$ECR_REGISTRY/$PROJECT_NAME-mcp-stub:$IMAGE_TAG_SHA" \
+            ./sidecar
+
+          docker push "$ECR_REGISTRY/$PROJECT_NAME-mcp-stub:latest"
+          docker push "$ECR_REGISTRY/$PROJECT_NAME-mcp-stub:$IMAGE_TAG_SHA"
+
+      - name: Force ECS deployment
+        run: |
+          aws ecs update-service \
+            --cluster "$ECS_CLUSTER_NAME" \
+            --service "$ECS_SERVICE_NAME" \
+            --force-new-deployment \
+            --region "$AWS_REGION"

@@ -1,0 +1,47 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      SIDECAR_URL: http://127.0.0.1:8061
+      # CORS_ORIGINS: http://localhost:5173  # habilite apenas se precisar de cross-origin
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8080/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # O sidecar compartilha o namespace de rede do app (network_mode),
+  # espelhando o comportamento do ECS Fargate (awsvpc): o app o alcança
+  # via 127.0.0.1:8061 e a porta NÃO é publicada para fora.
+  mcp-stub:
+    build:
+      context: ./sidecar
+    network_mode: "service:app"
+    depends_on:
+      - app
+    environment:
+      PORT: "8061"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8061/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 5s

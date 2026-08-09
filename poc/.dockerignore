@@ -1,0 +1,8 @@
+**/node_modules
+**/dist
+infra
+terminals
+README.md
+Makefile
+docker-compose.yml
+**/.env

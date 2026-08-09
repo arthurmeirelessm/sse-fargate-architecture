@@ -1,0 +1,57 @@
+name: Auto PR from feature branches
+
+on:
+  push:
+    branches:
+      - "feature/**"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  open-pr:
+    name: Open PR to main
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Open pull request if it does not exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_BRANCH: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          existing_pr="$(gh pr list \
+            --repo "$REPO" \
+            --head "$HEAD_BRANCH" \
+            --base main \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')"
+
+          if [ -n "$existing_pr" ]; then
+            echo "PR already exists: #$existing_pr"
+            exit 0
+          fi
+
+          gh pr create \
+            --repo "$REPO" \
+            --base main \
+            --head "$HEAD_BRANCH" \
+            --title "Merge ${HEAD_BRANCH} into main" \
+            --body "$(cat <<'EOF'
+          ## Summary
+          Automated PR opened from a `feature/**` branch.
+
+          ## Merge process
+          Review this PR manually and merge it into `main` when ready.
+
+          ## Deployment
+          After merge, the `Deploy to ECS` workflow will build/push the container images and force a new ECS deployment.
+          EOF
+          )"
