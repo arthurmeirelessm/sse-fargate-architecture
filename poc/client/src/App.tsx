@@ -26,6 +26,12 @@ const statusColor: Record<SseStatus, string> = {
   error: "bg-rose-500",
 };
 
+const cardClass =
+  "rounded-3xl border border-white/70 bg-white/85 p-6 shadow-xl shadow-slate-950/5 backdrop-blur";
+
+const primaryButtonClass =
+  "rounded-2xl px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/10 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50";
+
 export default function App() {
   const [restResult, setRestResult] = useState<string | null>(null);
   const [restLoading, setRestLoading] = useState(false);
@@ -110,114 +116,248 @@ export default function App() {
     setSseStatus("idle");
   }
 
+  const sidecarStatusText =
+    sidecar == null
+      ? "Verificando..."
+      : sidecar.reachable
+        ? "Sidecar online"
+        : "Sidecar inacessível";
+
   return (
-    <main className="min-h-screen bg-slate-100 px-4 py-10 text-slate-800">
-      <div className="mx-auto max-w-3xl space-y-6">
-        <header>
-          <h1 className="text-2xl font-bold">POC — ALB + ECS Fargate + SSE</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Route 53 → ALB → Fargate → Express (frontend + API) + sidecar
-            interno
-          </p>
+    <main className="min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,#dbeafe,transparent_32rem),linear-gradient(135deg,#f8fafc_0%,#eef2ff_45%,#ecfeff_100%)] px-4 py-8 text-slate-900 sm:py-12">
+      <div className="mx-auto max-w-6xl space-y-8">
+        <header className="relative overflow-hidden rounded-[2rem] border border-white/70 bg-slate-950 px-6 py-8 text-white shadow-2xl shadow-slate-950/20 sm:px-10">
+          <div className="absolute right-0 top-0 h-48 w-48 rounded-full bg-cyan-400/20 blur-3xl" />
+          <div className="absolute bottom-0 left-1/2 h-56 w-56 rounded-full bg-indigo-500/20 blur-3xl" />
+          <div className="relative grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
+            <div>
+              <span className="inline-flex rounded-full border border-cyan-300/30 bg-cyan-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-cyan-100">
+                AWS Architecture POC
+              </span>
+              <h1 className="mt-5 max-w-3xl text-4xl font-black tracking-tight sm:text-5xl">
+                ALB + ECS Fargate com REST, SSE e sidecar interno
+              </h1>
+              <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
+                Frontend React servido pelo Express, API em <code>/api/*</code>{" "}
+                e sidecar <code>mcp-stub</code> acessado apenas via loopback na
+                task.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
+                <p className="text-xs uppercase tracking-wide text-slate-400">
+                  Frontend
+                </p>
+                <p className="mt-1 font-semibold">React + Vite</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
+                <p className="text-xs uppercase tracking-wide text-slate-400">
+                  Backend
+                </p>
+                <p className="mt-1 font-semibold">Express + TS</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
+                <p className="text-xs uppercase tracking-wide text-slate-400">
+                  Streaming
+                </p>
+                <p className="mt-1 font-semibold">SSE real</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
+                <p className="text-xs uppercase tracking-wide text-slate-400">
+                  Sidecar
+                </p>
+                <p className="mt-1 font-semibold">127.0.0.1:8061</p>
+              </div>
+            </div>
+          </div>
         </header>
 
-        <section className="rounded-xl bg-white p-5 shadow-sm">
-          <h2 className="font-semibold">Sidecar (mcp-stub)</h2>
-          <div className="mt-2 flex items-center gap-2 text-sm">
-            <span
-              className={`inline-block h-2.5 w-2.5 rounded-full ${
-                sidecar == null
-                  ? "bg-slate-400"
-                  : sidecar.reachable
-                    ? "bg-emerald-500"
-                    : "bg-rose-500"
-              }`}
-            />
-            <span>
-              {sidecar == null
-                ? "Verificando…"
-                : sidecar.reachable
-                  ? "Acessível via 127.0.0.1:8061"
-                  : "Inacessível"}
-            </span>
-            <button
-              onClick={checkSidecar}
-              className="ml-auto rounded-md bg-slate-200 px-3 py-1 text-xs font-medium hover:bg-slate-300"
-            >
-              Atualizar
-            </button>
-          </div>
-          {sidecar && (
-            <pre className="mt-3 overflow-x-auto rounded-md bg-slate-900 p-3 text-xs text-slate-100">
-              {sidecar.detail}
-            </pre>
-          )}
-        </section>
-
-        <section className="rounded-xl bg-white p-5 shadow-sm">
-          <h2 className="font-semibold">REST síncrono — /api/sync</h2>
-          <button
-            onClick={testRest}
-            disabled={restLoading}
-            className="mt-3 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-          >
-            {restLoading ? "Chamando…" : "Testar REST"}
-          </button>
-          {restError && (
-            <p className="mt-3 text-sm text-rose-600">{restError}</p>
-          )}
-          {restResult && (
-            <pre className="mt-3 overflow-x-auto rounded-md bg-slate-900 p-3 text-xs text-slate-100">
-              {restResult}
-            </pre>
-          )}
-        </section>
-
-        <section className="rounded-xl bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-2">
-            <h2 className="font-semibold">SSE — /api/stream</h2>
-            <span
-              className={`ml-auto inline-block h-2.5 w-2.5 rounded-full ${statusColor[sseStatus]}`}
-            />
-            <span className="text-sm text-slate-500">
-              {statusLabel[sseStatus]}
-            </span>
-          </div>
-          <div className="mt-3 flex gap-2">
-            <button
-              onClick={startSse}
-              className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-            >
-              Iniciar SSE
-            </button>
-            <button
-              onClick={stopSse}
-              className="rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700"
-            >
-              Parar SSE
-            </button>
-          </div>
-          <ul className="mt-4 max-h-72 space-y-1 overflow-y-auto text-sm">
-            {sseEvents.map((event, index) => (
-              <li
-                key={index}
-                className={`rounded-md px-3 py-1.5 font-mono text-xs ${
-                  event.kind === "done"
-                    ? "bg-sky-100 text-sky-800"
-                    : "bg-slate-100"
+        <section className="grid gap-4 md:grid-cols-3">
+          <div className={cardClass}>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+              Sidecar
+            </p>
+            <div className="mt-3 flex items-center gap-3">
+              <span
+                className={`h-3 w-3 rounded-full shadow-lg ${
+                  sidecar == null
+                    ? "bg-slate-400 shadow-slate-400/30"
+                    : sidecar.reachable
+                      ? "bg-emerald-500 shadow-emerald-500/40"
+                      : "bg-rose-500 shadow-rose-500/40"
                 }`}
+              />
+              <p className="text-lg font-bold">{sidecarStatusText}</p>
+            </div>
+            <p className="mt-2 text-sm text-slate-500">
+              Prova a chamada interna do app para o sidecar.
+            </p>
+          </div>
+
+          <div className={cardClass}>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+              REST
+            </p>
+            <p className="mt-3 text-lg font-bold">/api/sync</p>
+            <p className="mt-2 text-sm text-slate-500">
+              Request síncrono curto com resposta JSON e requestId.
+            </p>
+          </div>
+
+          <div className={cardClass}>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+              SSE
+            </p>
+            <div className="mt-3 flex items-center gap-3">
+              <span
+                className={`h-3 w-3 rounded-full shadow-lg ${statusColor[sseStatus]}`}
+              />
+              <p className="text-lg font-bold">{statusLabel[sseStatus]}</p>
+            </div>
+            <p className="mt-2 text-sm text-slate-500">
+              {sseEvents.length} evento(s) recebido(s) nesta sessão.
+            </p>
+          </div>
+        </section>
+
+        <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+          <div className="space-y-6">
+            <section className={cardClass}>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-500">
+                    Interno
+                  </p>
+                  <h2 className="mt-2 text-xl font-bold">Sidecar mcp-stub</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    O endpoint público chama <code>/health</code> no sidecar
+                    via <code>127.0.0.1:8061</code>.
+                  </p>
+                </div>
+                <button
+                  onClick={checkSidecar}
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:text-indigo-700"
+                >
+                  Atualizar
+                </button>
+              </div>
+
+              {sidecar && (
+                <pre className="mt-5 max-h-56 overflow-auto rounded-2xl border border-slate-800 bg-slate-950 p-4 text-xs leading-5 text-cyan-100 shadow-inner">
+                  {sidecar.detail}
+                </pre>
+              )}
+            </section>
+
+            <section className={cardClass}>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-500">
+                API REST
+              </p>
+              <h2 className="mt-2 text-xl font-bold">Teste síncrono</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Chama <code>/api/sync</code> e exibe o payload retornado pelo
+                Express.
+              </p>
+
+              <button
+                onClick={testRest}
+                disabled={restLoading}
+                className={`${primaryButtonClass} mt-5 bg-indigo-600 hover:bg-indigo-700`}
               >
-                {event.kind === "done"
-                  ? `done — total: ${event.total} (${event.timestamp})`
-                  : `#${event.seq} ${event.message} (${event.timestamp})`}
-              </li>
-            ))}
-            {sseEvents.length === 0 && (
-              <li className="text-xs text-slate-400">
-                Nenhum evento recebido ainda.
-              </li>
-            )}
-          </ul>
+                {restLoading ? "Chamando..." : "Testar REST"}
+              </button>
+
+              {restError && (
+                <p className="mt-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+                  {restError}
+                </p>
+              )}
+              {restResult && (
+                <pre className="mt-5 max-h-56 overflow-auto rounded-2xl border border-slate-800 bg-slate-950 p-4 text-xs leading-5 text-emerald-100 shadow-inner">
+                  {restResult}
+                </pre>
+              )}
+            </section>
+          </div>
+
+          <section className={cardClass}>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-500">
+                  EventSource
+                </p>
+                <h2 className="mt-2 text-xl font-bold">Streaming SSE</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Recebe um evento por segundo por 10 segundos e fecha no evento
+                  final <code>done</code>.
+                </p>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-600">
+                <span className={`h-2.5 w-2.5 rounded-full ${statusColor[sseStatus]}`} />
+                {statusLabel[sseStatus]}
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button
+                onClick={startSse}
+                className={`${primaryButtonClass} bg-emerald-600 hover:bg-emerald-700`}
+              >
+                Iniciar SSE
+              </button>
+              <button
+                onClick={stopSse}
+                className={`${primaryButtonClass} bg-rose-600 hover:bg-rose-700`}
+              >
+                Parar SSE
+              </button>
+            </div>
+
+            <div className="mt-6 rounded-3xl border border-slate-200 bg-slate-50/80 p-4">
+              <div className="mb-4 flex items-center justify-between">
+                <p className="text-sm font-bold text-slate-700">
+                  Eventos recebidos
+                </p>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500 shadow-sm">
+                  {sseEvents.length} total
+                </span>
+              </div>
+
+              <ul className="max-h-[28rem] space-y-3 overflow-y-auto pr-1">
+                {sseEvents.map((event, index) => (
+                  <li
+                    key={index}
+                    className={`relative rounded-2xl border px-4 py-3 text-sm shadow-sm ${
+                      event.kind === "done"
+                        ? "border-sky-200 bg-sky-50 text-sky-900"
+                        : "border-white bg-white text-slate-700"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-mono text-xs font-bold">
+                        {event.kind === "done" ? "done" : `#${event.seq}`}
+                      </span>
+                      <span className="truncate font-mono text-[11px] text-slate-400">
+                        {event.timestamp}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm">
+                      {event.kind === "done"
+                        ? `Stream finalizado com ${event.total} eventos.`
+                        : event.message}
+                    </p>
+                  </li>
+                ))}
+                {sseEvents.length === 0 && (
+                  <li className="rounded-2xl border border-dashed border-slate-300 bg-white/70 px-4 py-8 text-center text-sm text-slate-400">
+                    Nenhum evento recebido ainda. Clique em "Iniciar SSE" para
+                    acompanhar o stream em tempo real.
+                  </li>
+                )}
+              </ul>
+            </div>
+          </section>
         </section>
       </div>
     </main>
