@@ -227,6 +227,16 @@ Secret obrigatório:
 AWS_ROLE_TO_ASSUME=arn:aws:iam::<account-id>:role/<role-oidc-github-actions>
 ```
 
+Secret opcional para abrir PR quando o `GITHUB_TOKEN` do repositório estiver
+bloqueado pela configuração do GitHub:
+
+```text
+GH_PR_TOKEN=<fine-grained-personal-access-token>
+```
+
+Esse token precisa ter acesso ao repositório e permissão **Pull requests:
+Read and write**. Para token clássico, use o escopo `repo`.
+
 Variables opcionais (os defaults já batem com este POC):
 
 ```text

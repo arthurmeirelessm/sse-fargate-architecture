@@ -20,7 +20,7 @@ jobs:
 
       - name: Open pull request if it does not exist
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_PR_TOKEN || github.token }}
           HEAD_BRANCH: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
         run: |
