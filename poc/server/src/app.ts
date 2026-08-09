@@ -26,6 +26,8 @@ export const defaultConfig: AppConfig = {
   staticDir: process.env.STATIC_DIR,
 };
 
+
+
 export function createApp(config: AppConfig = defaultConfig) {
   const app = express();
   app.disable("x-powered-by");

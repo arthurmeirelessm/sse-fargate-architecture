@@ -53,10 +53,33 @@ jobs:
           npm run typecheck --prefix sidecar
           npm run build --prefix client
 
+      - name: Check AWS credential configuration
+        env:
+          AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          AWS_ACCESS_KEY_ID_SECRET: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY_SECRET: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "$AWS_ROLE_TO_ASSUME" ]; then
+            echo "Using AWS OIDC role: $AWS_ROLE_TO_ASSUME"
+            exit 0
+          fi
+
+          if [ -n "$AWS_ACCESS_KEY_ID_SECRET" ] && [ -n "$AWS_SECRET_ACCESS_KEY_SECRET" ]; then
+            echo "Using AWS access key secrets."
+            exit 0
+          fi
+
+          echo "::error::Configure either AWS_ROLE_TO_ASSUME (recommended OIDC) or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY repository secrets."
+          exit 1
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
