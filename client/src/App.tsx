@@ -114,10 +114,9 @@ export default function App() {
     <main className="min-h-screen bg-slate-100 px-4 py-10 text-slate-800">
       <div className="mx-auto max-w-3xl space-y-6">
         <header>
-          <h1 className="text-2xl font-bold">POC — ALB + ECS Fargate + SSE</h1>
+          <h1 className="text-2xl font-bold">POC — ALB + EKS Fargate + SSE</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Route 53 → ALB → Fargate → Express (frontend + API) + sidecar
-            interno
+            Route 53 → ALB → EKS Fargate → Express (frontend + API) + sidecar interno
           </p>
         </header>
 

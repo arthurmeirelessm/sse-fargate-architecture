@@ -1,11 +1,11 @@
 output "alb_url" {
-  description = "URL direta do ALB. No modo sem domínio, use esta URL para testar o POC."
-  value       = "http://${aws_lb.this.dns_name}"
+  description = "URL HTTP direta do ALB criado pelo AWS Load Balancer Controller."
+  value       = "http://${kubernetes_ingress_v1.app.status[0].load_balancer[0].ingress[0].hostname}"
 }
 
 output "app_url" {
-  description = "URL principal do POC (ALB HTTP ou domínio HTTPS, dependendo de enable_custom_domain)"
-  value       = var.enable_custom_domain ? "https://${local.fqdn}" : "http://${aws_lb.this.dns_name}"
+  description = "URL principal do POC (ALB HTTP ou domínio HTTPS, dependendo de enable_custom_domain)."
+  value       = var.enable_custom_domain ? "https://${local.fqdn}" : "http://${kubernetes_ingress_v1.app.status[0].load_balancer[0].ingress[0].hostname}"
 }
 
 output "route53_domain" {
@@ -23,12 +23,22 @@ output "ecr_repository_sidecar" {
   value       = aws_ecr_repository.sidecar.repository_url
 }
 
-output "ecs_cluster_name" {
-  description = "Nome do cluster ECS"
-  value       = aws_ecs_cluster.this.name
+output "eks_cluster_name" {
+  description = "Nome do cluster EKS"
+  value       = aws_eks_cluster.this.name
 }
 
-output "ecs_service_name" {
-  description = "Nome do service ECS"
-  value       = aws_ecs_service.this.name
+output "eks_cluster_endpoint" {
+  description = "Endpoint da API do cluster EKS"
+  value       = aws_eks_cluster.this.endpoint
+}
+
+output "kubernetes_namespace" {
+  description = "Namespace do Deployment da aplicação"
+  value       = kubernetes_namespace_v1.application.metadata[0].name
+}
+
+output "cloudwatch_log_group" {
+  description = "Log group de workloads EKS Fargate"
+  value       = aws_cloudwatch_log_group.fargate.name
 }

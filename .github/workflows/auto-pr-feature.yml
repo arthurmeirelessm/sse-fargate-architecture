@@ -52,6 +52,6 @@ jobs:
           Review this PR manually and merge it into `main` when ready.
 
           ## Deployment
-          After merge, the `Deploy to ECS` workflow will build/push the container images and force a new ECS deployment.
+          After merge, the `Deploy to EKS` workflow will build/push immutable container images and roll out the EKS Deployment.
           EOF
           )"

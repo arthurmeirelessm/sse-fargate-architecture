@@ -22,9 +22,9 @@ services:
       retries: 3
       start_period: 10s
 
-  # O sidecar compartilha o namespace de rede do app (network_mode),
-  # espelhando o comportamento do ECS Fargate (awsvpc): o app o alcança
-  # via 127.0.0.1:8061 e a porta NÃO é publicada para fora.
+  # O sidecar compartilha o namespace de rede do app (network_mode), como
+  # containers do mesmo Pod EKS: o app o alcança por 127.0.0.1:8061 e a porta
+  # NÃO é publicada para fora.
   mcp-stub:
     build:
       context: ./sidecar

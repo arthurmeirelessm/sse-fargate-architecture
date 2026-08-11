@@ -124,7 +124,7 @@ export default function App() {
         : "Sidecar inacessível";
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,#dbeafe,transparent_32rem),linear-gradient(135deg,#f8fafc_0%,#eef2ff_45%,#ecfeff_100%)] px-4 py-8 text-slate-900 sm:py-12">
+    <main className="min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,#bbf7d0,transparent_32rem),linear-gradient(135deg,#f0fdf4_0%,#dcfce7_45%,#d1fae5_100%)] px-4 py-8 text-slate-900 sm:py-12">
       <div className="mx-auto max-w-6xl space-y-8">
         <header className="relative overflow-hidden rounded-[2rem] border border-white/70 bg-slate-950 px-6 py-8 text-white shadow-2xl shadow-slate-950/20 sm:px-10">
           <div className="absolute right-0 top-0 h-48 w-48 rounded-full bg-cyan-400/20 blur-3xl" />
@@ -135,12 +135,12 @@ export default function App() {
                 AWS Architecture POC
               </span>
               <h1 className="mt-5 max-w-3xl text-4xl font-black tracking-tight sm:text-5xl">
-                ALB + ECS Fargate com REST, SSE e sidecar interno
+                ALB + EKS Fargate com REST, SSE e sidecar interno
               </h1>
               <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
                 Frontend React servido pelo Express, API em <code>/api/*</code>{" "}
-                e sidecar <code>mcp-stub</code> acessado apenas via loopback na
-                task.
+                e sidecar <code>mcp-stub</code> acessado apenas via loopback no
+                Pod.
               </p>
             </div>
 

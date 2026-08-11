@@ -1,172 +1,90 @@
-# POC — ALB → ECS Fargate → Express + sidecar (SSE)
+# POC — ALB → EKS Fargate → Express + sidecar (SSE)
 
-POC isolado e mínimo para validar a arquitetura na AWS: ALB público, task
-Fargate com dois containers (app + sidecar interno), REST síncrono e streaming
-SSE real. Por padrão, o deploy usa HTTP pelo DNS público automático do ALB,
-sem exigir domínio, Route 53 ou ACM. Se você tiver uma hosted zone pública no
-Route 53, pode ativar domínio customizado + HTTPS com `enable_custom_domain`.
+POC para executar uma API Express + React e o sidecar `mcp-stub` no Amazon EKS
+usando Fargate. O ALB recebe HTTP/HTTPS e encaminha para um `Service`
+Kubernetes; a aplicação e o sidecar são containers do mesmo Pod, portanto o
+sidecar continua privado e acessível em `127.0.0.1:8061`.
 
 ## Arquitetura
 
-```
-                   Internet
-                      │
-        ┌─────────────▼─────────────┐
-        │ DNS público automático    │
-        │ do ALB                    │
-        │                           │
-        │ Opcional: Route 53 + ACM  │
-        │ poc.<domain> via HTTPS    │
-        └─────────────┬─────────────┘
-                      │
-   ┌──────────────────▼───────────────────────────────────────────────┐
-   │ VPC 10.42.0.0/16 (2 subnets públicas, IGW)                       │
-   │                                                                  │
-   │   ┌──────────────────────────────┐                               │
-   │   │ ALB (SG: 80/443 internet)    │  Default: HTTP :80            │
-   │   │  :80 → app                   │  Opcional: :80 → :443 + ACM   │
-   │   └───────────────┬──────────────┘                               │
-   │                   │ HTTP :8080 (SG da task só aceita do ALB)     │
-   │   ┌───────────────▼──────────────────────────────┐               │
-   │   │ ECS Fargate task (1 vCPU / 2 GB, awsvpc)     │               │
-   │   │                                              │               │
-   │   │  ┌─────────────────┐   ┌──────────────────┐  │               │
-   │   │  │ app :8080       │──►│ mcp-stub :8061   │  │               │
-   │   │  │ Express + React │   │ (só localhost,   │  │               │
-   │   │  │ /api/* + /      │   │  não exposto)    │  │               │
-   │   │  └─────────────────┘   └──────────────────┘  │               │
-   │   └──────────────────────────────────────────────┘               │
-   │            │ logs                    │ logs                      │
-   │      CloudWatch /ecs/…/app     CloudWatch /ecs/…/mcp-stub        │
-   └──────────────────────────────────────────────────────────────────┘
-                 Imagens: ECR (sse-poc-app, sse-poc-mcp-stub)
+```mermaid
+flowchart LR
+  Internet --> alb[ALB]
+  alb --> ingress[Ingress]
+  ingress --> service[ClusterIP Service]
+  service --> pod["EKS Fargate Pod"]
+  pod --> app["app :8080"]
+  app --> sidecar["mcp-stub :8061"]
+  ecr[ECR] --> pod
+  pod --> logs[CloudWatch Logs]
 ```
 
-> **Nota de segurança (POC):** para evitar o custo de NAT Gateway, a task roda
-> em **subnets públicas com `assign_public_ip = true`**. Isso é aceitável
-> **somente para teste**: os Security Groups garantem que a task só recebe
-> tráfego 8080 vindo do ALB e o sidecar não recebe nada de fora. Em produção,
-> use tasks em **subnets privadas com NAT Gateway ou VPC endpoints**
-> (ECR, S3, CloudWatch Logs).
-
-## Estrutura
-
-```
-poc/
-├── server/            # Express + TS (API + serve o build do frontend)
-├── sidecar/           # mcp-stub: Node/TS em localhost:8061 (+ Dockerfile)
-├── client/            # React + Vite + TS + Tailwind
-├── Dockerfile.app     # multi-stage: build Vite + Express servindo client/dist
-├── docker-compose.yml # app + sidecar locais em http://localhost:8080
-├── Makefile           # fluxo local e de deploy
-└── infra/terraform/   # VPC, ALB, ECR, ECS, IAM, Logs (+ ACM/Route53 opcional)
-```
-
-## Endpoints
-
-| Endpoint              | Descrição                                                        |
-| --------------------- | ---------------------------------------------------------------- |
-| `GET /api/health`     | Status, timestamp e versão (usado pelo health check do ALB)      |
-| `GET /api/sync`       | REST síncrono: simula processamento e retorna requestId          |
-| `GET /api/stream`     | SSE: 1 evento JSON por segundo durante 10s + evento final `done` |
-| `GET /api/sidecar-status` | Prova a comunicação interna com o sidecar em `127.0.0.1:8061` |
-| `GET /`               | Frontend React (mesma origem, URLs relativas)                    |
+- `infra/terraform` é a fonte de infraestrutura: VPC, subnets privadas, NAT
+  Gateway, EKS, Fargate profiles, IAM/IRSA, controller ALB, deployment,
+  service, ingress, logs, ACM e Route 53 opcionais.
+- O AWS Load Balancer Controller cria e mantém o ALB a partir do Ingress. O
+  target type é `ip`, necessário para Pods EKS Fargate.
+- Os Pods Fargate ficam em duas subnets privadas. O NAT Gateway permite pull
+  do ECR, comunicação com APIs AWS e envio de logs.
+- O controller e CoreDNS também possuem Fargate profiles dedicados. Não há
+  node group EC2.
 
 ## Pré-requisitos
 
-- Docker (com Compose v2)
-- Node.js 20+ (desenvolvido com Node 24)
-- Terraform 1.5+
-- AWS CLI v2 autenticada (`aws sts get-caller-identity` deve funcionar)
-- Opcional: uma **hosted zone pública já existente** no Route 53, somente se
-  quiser testar domínio customizado + HTTPS via ACM
+- Docker com Compose v2
+- Node.js 20+ (o POC usa Node 24 no CI)
+- Terraform 1.5+, AWS CLI v2 e `kubectl`
+- Credenciais AWS com permissão para provisionar os recursos
+- Opcionalmente, uma hosted zone pública Route 53 para domínio + HTTPS
 
-## Rodando localmente
+> Custo: EKS cobra pelo control plane, Fargate pelos Pods provisionados, além
+> de ALB, NAT Gateway, ECR e CloudWatch Logs. O NAT é obrigatório nesta
+> topologia porque Fargate não atribui IP público aos Pods. Destrua o POC ao
+> terminar.
+
+## Rodar localmente
 
 ```bash
-cd poc
+make up
+# http://localhost:8080
 
-# Opção A — Docker Compose (igual ao ECS: sidecar no mesmo namespace de rede)
-make up            # ou: docker compose up --build
-# abra http://localhost:8080
-
-# Opção B — sem Docker (dois terminais)
-make install
-cd sidecar && npm run dev     # terminal 1: sidecar em :8061
-cd server  && npm run dev     # terminal 2: API em :8080
-cd client  && npm run dev     # terminal 3 (opcional): Vite em :5173 com proxy /api
-
-# Testes e typecheck
 make test
 make typecheck
 ```
 
-### Testando com curl
+## Primeiro deploy no EKS
+
+1. Configure a infraestrutura:
 
 ```bash
-curl -s http://localhost:8080/api/health | jq
-curl -s http://localhost:8080/api/sync | jq
-curl -s http://localhost:8080/api/sidecar-status | jq
-
-# SSE (o -N desabilita o buffering do curl; encerra sozinho após o "done")
-curl -N http://localhost:8080/api/stream
+cp infra/terraform/terraform.tfvars.example infra/terraform/terraform.tfvars
 ```
 
-## Deploy na AWS
+Mantenha `enable_custom_domain = false` para testar pelo DNS HTTP do ALB. Para
+HTTPS, preencha `hosted_zone_id`, `domain_name` e `subdomain`.
 
-> **Custos:** ALB (~US$ 16/mês + LCUs), Fargate 1 vCPU/2 GB (~US$ 36/mês se
-> ficar ligado), ECR (storage) e CloudWatch Logs cobram por hora/uso.
-> **Destrua o ambiente assim que terminar o teste** (`make destroy`).
-
-### 1. Configurar variáveis
+2. Crie o ECR, publique imagens com tag imutável e aplique o Terraform:
 
 ```bash
-cd poc/infra/terraform
-cp terraform.tfvars.example terraform.tfvars
-# para o teste sem domínio, você pode deixar enable_custom_domain = false
+IMAGE_TAG="$(git rev-parse --short HEAD)"
+
+make tf-init
+make ecr
+make ecr-login
+make push IMAGE_TAG="$IMAGE_TAG"
+make apply IMAGE_TAG="$IMAGE_TAG"
 ```
 
-Configuração mínima para testar sem domínio:
+O `apply` instala o AWS Load Balancer Controller, cria o Deployment de dois
+containers, espera o rollout e aguarda o ALB do Ingress. A máquina que executa
+o Terraform precisa do AWS CLI, pois os providers Helm/Kubernetes obtêm o token
+de autenticação do cluster por `aws eks get-token`.
 
-```hcl
-aws_region           = "us-east-1"
-project_name         = "sse-poc"
-enable_custom_domain = false
-image_tag            = "latest"
-log_retention_days   = 7
-```
-
-Nesse modo, o Terraform **não cria Route 53 nem ACM**. Você usa o output
-`app_url`, que aponta para o DNS público automático do ALB em HTTP.
-
-Se quiser testar domínio customizado depois, use `enable_custom_domain = true`
-e preencha `hosted_zone_id`, `domain_name` e `subdomain`. Use um subdomínio
-(ex.: `poc.seudominio.com`), nunca o domínio raiz.
-
-### 2. Sequência segura de deploy
-
-O ECR **precisa existir antes do primeiro push** (a task definition referencia
-as imagens). Por isso o fluxo é dividido:
+3. Valide o ambiente:
 
 ```bash
-cd poc
-
-make tf-init      # terraform init
-make ecr          # cria SOMENTE os repositórios ECR (apply -target)
-make ecr-login    # docker login no ECR
-make push         # builda e publica as duas imagens
-make apply        # cria todo o restante (VPC, ALB, ECS, DNS/ACM se habilitado...)
-```
-
-O `make apply` mostra o plano e pede confirmação. No modo sem domínio, o output
-`app_url` já será uma URL `http://...elb.amazonaws.com`. Com domínio customizado,
-a validação do certificado ACM + propagação do DNS podem levar alguns minutos.
-
-### 3. Verificar
-
-```bash
-cd infra/terraform
-APP_URL=$(terraform output -raw app_url)
+make k8s-status
+APP_URL="$(terraform -chdir=infra/terraform output -raw app_url)"
 
 curl -s "$APP_URL/api/health" | jq
 curl -s "$APP_URL/api/sync" | jq
@@ -174,46 +92,70 @@ curl -s "$APP_URL/api/sidecar-status" | jq
 curl -N "$APP_URL/api/stream"
 ```
 
-No navegador, abra o valor de `terraform output -raw app_url`:
+O último comando deve receber um evento SSE por segundo e terminar com `done`.
 
-1. O card **Sidecar** deve mostrar "Acessível via 127.0.0.1:8061".
-2. Clique em **Testar REST** e confira o JSON com `requestId`.
-3. Clique em **Iniciar SSE**: um evento por segundo deve aparecer em tempo
-   real por 10 segundos, terminando com o evento `done`. Você também pode
-   acompanhar na aba Network do DevTools (request `stream`, tipo `eventsource`).
-4. **Parar SSE** encerra a conexão no meio (o servidor limpa o timer).
+## Atualização e rollback
 
-### 4. Cleanup (importante!)
+Para atualizar localmente, publique uma nova tag e altere as imagens do
+Deployment:
 
 ```bash
-cd poc
-make destroy      # remove TUDO: ALB, ECS, ECR (com imagens), VPC e DNS/cert se habilitados
+IMAGE_TAG="$(git rev-parse --short HEAD)"
+make push IMAGE_TAG="$IMAGE_TAG"
+make deploy IMAGE_TAG="$IMAGE_TAG"
 ```
 
-Confirme no console que o ALB, o cluster ECS e os log groups sumiram — esses
-são os itens que continuam cobrando se ficarem para trás.
-
-## Atualizando a aplicação depois do primeiro deploy
+Para rollback, informe uma tag ECR conhecida:
 
 ```bash
-make ecr-login
-make push                                  # nova imagem :latest
-aws ecs update-service --cluster sse-poc-cluster \
-  --service sse-poc-service --force-new-deployment --region us-east-1
+make deploy IMAGE_TAG="<tag-anterior>"
 ```
 
-(Ou use uma `image_tag` nova e rode `make apply`.)
+Use `make k8s-logs` para acompanhar o container `app`. Os logs de ambos os
+containers também vão para o log group retornado por
+`terraform output -raw cloudwatch_log_group`.
 
-## O que mudar para produção
+## CI/CD
 
-Este POC otimiza custo e simplicidade. Para produção:
+O workflow `.github/workflows/deploy-main-eks.yml` testa o conteúdo de `poc/`,
+publica as imagens `latest` e `${github.sha}`, e faz rollout apenas das tags
+SHA no EKS.
 
-- Tasks em **subnets privadas** com NAT Gateway ou VPC endpoints (sem IP público).
-- **Mínimo 2 tasks** em AZs diferentes + **autoscaling** (CPU/memória/requests).
-- Segredos no **Secrets Manager**/SSM, injetados na task definition (nada em env).
-- **Logs estruturados, métricas e alarmes** (CloudWatch Alarms, Container Insights).
-- Remover qualquer worker de intervalos de dentro da API — jobs periódicos
-  devem virar processo separado (Scheduled Task/EventBridge), pois `setInterval`
-  dentro de uma API não sobrevive a scale-in/deploys e duplica com scale-out.
-- Pipeline de CI/CD com tags imutáveis de imagem (nunca `latest`).
-- Deletion protection no ALB, retenção de logs adequada e revisão de TLS policy.
+Configure no GitHub:
+
+- secret `AWS_ROLE_TO_ASSUME` com a role OIDC do GitHub Actions;
+- variável Terraform `github_actions_role_arn` com esse mesmo ARN antes do
+  primeiro `apply`;
+- variáveis opcionais `AWS_REGION`, `PROJECT_NAME`, `EKS_CLUSTER_NAME`,
+  `KUBERNETES_NAMESPACE` e `KUBERNETES_DEPLOYMENT`.
+
+A role do workflow precisa publicar no ECR e executar `eks:DescribeCluster`. O
+Terraform cria o EKS access entry que dá a ela autorização Kubernetes para o
+rollout.
+
+## Migração de um ambiente ECS existente
+
+A migração não preserva os recursos de execução: task definition, service,
+roles de task, ALB e target group ECS deixam de existir. ECR, ACM e a hosted
+zone são reaproveitados quando presentes.
+
+Antes de aplicar esta versão em um state que ainda controla ECS:
+
+```bash
+terraform -chdir=infra/terraform state pull > terraform-state-before-eks.json
+make tf-plan IMAGE_TAG="<tag-ja-publicada>"
+```
+
+Revise o plano cuidadosamente. Ele terá destruição dos recursos ECS/ALB
+legados e criação do EKS, NAT e ALB gerenciado pelo controller; haverá janela
+de indisponibilidade. Faça a publicação das imagens antes do `apply`, valide
+os endpoints acima e só então remova qualquer DNS/integração externa residual.
+
+## Limpeza
+
+```bash
+make destroy
+```
+
+Confirme a remoção do EKS, Fargate profiles, ALB do controller, NAT Gateway,
+ECR e log groups para evitar cobranças residuais.
