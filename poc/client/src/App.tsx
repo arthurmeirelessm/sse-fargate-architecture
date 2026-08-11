@@ -10,6 +10,7 @@ interface SseEvent {
   kind: "message" | "done";
 }
 
+
 const statusLabel: Record<SseStatus, string> = {
   idle: "Desconectado",
   connecting: "Conectando…",
