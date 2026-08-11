@@ -15,9 +15,9 @@ app.get("/health", (_req, res) => {
   });
 });
 
-// Sem exposição externa: no ECS (awsvpc) e no Compose o sidecar compartilha
-// o namespace de rede do app, então 127.0.0.1:8061 é suficiente e o Security
-// Group/Compose não publica esta porta.
+// Sem exposição externa: no Pod EKS e no Compose o sidecar compartilha o
+// namespace de rede do app, então 127.0.0.1:8061 é suficiente e nenhum
+// Service/Ingress publica esta porta.
 app.listen(port, () => {
   console.log(`[mcp-stub] escutando em http://127.0.0.1:${port}`);
 });

@@ -10,6 +10,29 @@ variable "project_name" {
   default     = "sse-poc"
 }
 
+variable "kubernetes_version" {
+  description = "Versão Kubernetes do cluster EKS"
+  type        = string
+  default     = "1.33"
+}
+
+variable "kubernetes_namespace" {
+  description = "Namespace Kubernetes onde a aplicação será executada"
+  type        = string
+  default     = "sse-poc"
+}
+
+variable "github_actions_role_arn" {
+  description = "ARN da role OIDC do GitHub Actions autorizada a fazer deploy no cluster. Configure-a para habilitar o workflow de deploy."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.github_actions_role_arn == null || can(regex("^arn:[^:]+:iam::[0-9]{12}:role/.+$", var.github_actions_role_arn))
+    error_message = "github_actions_role_arn deve ser um ARN válido de uma IAM role ou null."
+  }
+}
+
 variable "enable_custom_domain" {
   description = "Quando true, cria ACM + Route 53 + HTTPS para subdomain.domain_name. Quando false, usa apenas HTTP pelo DNS público do ALB."
   type        = bool
@@ -45,7 +68,7 @@ variable "subdomain" {
 }
 
 variable "image_tag" {
-  description = "Tag das imagens no ECR usadas pela task"
+  description = "Tag das imagens no ECR usadas pelo Deployment Kubernetes"
   type        = string
   default     = "latest"
 }
@@ -57,7 +80,7 @@ variable "log_retention_days" {
 }
 
 variable "vpc_cidr" {
-  description = "CIDR da VPC de teste"
+  description = "CIDR da VPC do ambiente"
   type        = string
   default     = "10.42.0.0/16"
 }

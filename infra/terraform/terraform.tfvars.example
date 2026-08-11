@@ -3,6 +3,8 @@
 
 aws_region     = "us-east-1"
 project_name   = "sse-poc"
+kubernetes_version   = "1.33"
+kubernetes_namespace = "sse-poc"
 
 # Default recomendado para testar o fluxo na AWS sem domínio:
 # cria ALB HTTP público e você acessa pelo DNS automático do ALB.
@@ -18,3 +20,7 @@ subdomain      = "poc"
 
 image_tag          = "latest"
 log_retention_days = 7
+
+# Configure para habilitar deploy pelo workflow do GitHub Actions. A role deve
+# ser a mesma exposta em AWS_ROLE_TO_ASSUME nos secrets do repositório.
+# github_actions_role_arn = "arn:aws:iam::<account-id>:role/<github-actions-role>"
