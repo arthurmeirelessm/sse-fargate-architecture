@@ -81,22 +81,19 @@ resource "aws_eks_fargate_profile" "load_balancer_controller" {
   depends_on = [aws_iam_role_policy_attachment.fargate_pod_execution]
 }
 
-resource "aws_eks_access_entry" "github_actions" {
-  count = var.github_actions_role_arn == null ? 0 : 1
-
+resource "aws_eks_access_entry" "codebuild" {
   cluster_name  = aws_eks_cluster.this.name
-  principal_arn = var.github_actions_role_arn
+  principal_arn = aws_iam_role.codebuild.arn
   type          = "STANDARD"
 }
 
-resource "aws_eks_access_policy_association" "github_actions" {
-  count = var.github_actions_role_arn == null ? 0 : 1
-
+resource "aws_eks_access_policy_association" "codebuild" {
   cluster_name  = aws_eks_cluster.this.name
-  principal_arn = aws_eks_access_entry.github_actions[0].principal_arn
-  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+  principal_arn = aws_eks_access_entry.codebuild.principal_arn
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSEditPolicy"
 
   access_scope {
-    type = "cluster"
+    type       = "namespace"
+    namespaces = [var.kubernetes_namespace]
   }
 }

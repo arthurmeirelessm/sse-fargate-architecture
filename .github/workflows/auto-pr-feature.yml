@@ -52,6 +52,6 @@ jobs:
           Review this PR manually and merge it into `main` when ready.
 
           ## Deployment
-          After merge, the `Deploy to EKS` workflow will build/push immutable container images and roll out the EKS Deployment.
+          After merge, AWS CodePipeline will build/push immutable container images through CodeBuild and roll out the EKS Deployment.
           EOF
           )"

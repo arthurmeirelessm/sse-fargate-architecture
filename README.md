@@ -17,6 +17,11 @@ flowchart LR
   app --> sidecar["mcp-stub :8061"]
   ecr[ECR] --> pod
   pod --> logs[CloudWatch Logs]
+  github[GitHub main] --> connection[AWS CodeConnections]
+  connection --> pipeline[CodePipeline]
+  pipeline --> codebuild[CodeBuild]
+  codebuild --> ecr
+  codebuild --> eks[EKS API]
 ```
 
 - `infra/terraform` é a fonte de infraestrutura: VPC, subnets privadas, NAT
@@ -28,6 +33,8 @@ flowchart LR
   do ECR, comunicação com APIs AWS e envio de logs.
 - O controller e CoreDNS também possuem Fargate profiles dedicados. Não há
   node group EC2.
+- O CodePipeline acompanha a branch `main` pelo AWS CodeConnections e chama
+  CodeBuild para validar, publicar imagens no ECR e atualizar o Deployment.
 
 ## Pré-requisitos
 
@@ -35,6 +42,8 @@ flowchart LR
 - Node.js 20+ (o POC usa Node 24 no CI)
 - Terraform 1.5+, AWS CLI v2 e `kubectl`
 - Credenciais AWS com permissão para provisionar os recursos
+- Uma conexão GitHub disponível no AWS CodeConnections, na mesma região do
+  pipeline
 - Opcionalmente, uma hosted zone pública Route 53 para domínio + HTTPS
 
 > Custo: EKS cobra pelo control plane, Fargate pelos Pods provisionados, além
@@ -94,10 +103,10 @@ curl -N "$APP_URL/api/stream"
 
 O último comando deve receber um evento SSE por segundo e terminar com `done`.
 
-## Atualização e rollback
+## Atualização e rollback local
 
-Para atualizar localmente, publique uma nova tag e altere as imagens do
-Deployment:
+O CodePipeline faz as atualizações regulares. Estes comandos continuam úteis
+para depuração ou rollback manual, com uma tag ECR conhecida:
 
 ```bash
 IMAGE_TAG="$(git rev-parse --short HEAD)"
@@ -117,21 +126,42 @@ containers também vão para o log group retornado por
 
 ## CI/CD
 
-O workflow `.github/workflows/deploy-main-eks.yml` testa o conteúdo de `poc/`,
-publica as imagens `latest` e `${github.sha}`, e faz rollout apenas das tags
-SHA no EKS.
+O Terraform cria o bucket de artefatos com versionamento, criptografia e acesso
+controlado pelas roles do pipeline, além das roles de serviço, CodeBuild e
+CodePipeline. A conexão GitHub é criada e autorizada fora do Terraform porque
+a instalação do GitHub exige interação no console AWS; ela é apenas
+referenciada pela variável `codeconnections_connection_arn`.
 
-Configure no GitHub:
+O fluxo é:
 
-- secret `AWS_ROLE_TO_ASSUME` com a role OIDC do GitHub Actions;
-- variável Terraform `github_actions_role_arn` com esse mesmo ARN antes do
-  primeiro `apply`;
-- variáveis opcionais `AWS_REGION`, `PROJECT_NAME`, `EKS_CLUSTER_NAME`,
-  `KUBERNETES_NAMESPACE` e `KUBERNETES_DEPLOYMENT`.
+1. Um push em `main` — inclusive após um merge — chega ao CodePipeline pela
+   conexão GitHub.
+2. CodeBuild executa `poc/buildspec.yml`: instala dependências, roda
+   typecheck/test/build, cria as imagens e publica `latest` e a tag imutável
+   com o commit SHA.
+3. O mesmo build atualiza o Deployment EKS e espera o rollout por até cinco
+   minutos.
 
-A role do workflow precisa publicar no ECR e executar `eks:DescribeCluster`. O
-Terraform cria o EKS access entry que dá a ela autorização Kubernetes para o
-rollout.
+Antes do primeiro `apply`, ajuste no `terraform.tfvars`:
+
+```hcl
+github_repository              = "owner/repository"
+github_branch                  = "main"
+codeconnections_connection_arn = "arn:aws:codeconnections:us-east-1:<account-id>:connection/<connection-id>"
+```
+
+Após o primeiro `apply`, inicie a primeira execução com o snapshot atual de
+`main` caso o pipeline não tenha sido disparado por um novo push:
+
+```bash
+aws codepipeline start-pipeline-execution \
+  --name "$(terraform -chdir=infra/terraform output -raw codepipeline_name)"
+```
+
+Não são necessários secrets AWS nem permissões OIDC no GitHub para deploy. A
+role do CodeBuild tem acesso mínimo ao ECR, `eks:DescribeCluster`, ao bucket
+de artefatos e permissão Kubernetes de edição apenas no namespace da aplicação.
+Os logs do processo ficam no output `codebuild_log_group`.
 
 ## Migração de um ambiente ECS existente
 
