@@ -42,3 +42,18 @@ output "cloudwatch_log_group" {
   description = "Log group de workloads EKS Fargate"
   value       = aws_cloudwatch_log_group.fargate.name
 }
+
+output "codepipeline_name" {
+  description = "Nome do pipeline que publica e implanta alterações da branch configurada"
+  value       = aws_codepipeline.deploy.name
+}
+
+output "codepipeline_artifacts_bucket" {
+  description = "Bucket privado que armazena os artefatos transitórios do pipeline"
+  value       = aws_s3_bucket.pipeline_artifacts.bucket
+}
+
+output "codebuild_log_group" {
+  description = "Log group dos builds e deploys executados pelo CodeBuild"
+  value       = aws_cloudwatch_log_group.codebuild.name
+}

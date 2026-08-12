@@ -228,6 +228,15 @@ resource "kubernetes_deployment_v1" "app" {
 
   wait_for_rollout = true
 
+  # As imagens são atualizadas pelo CodeBuild a cada release. A topologia do
+  # Deployment continua sob gestão do Terraform, sem reverter a tag implantada.
+  lifecycle {
+    ignore_changes = [
+      spec[0].template[0].spec[0].container[0].image,
+      spec[0].template[0].spec[0].container[1].image,
+    ]
+  }
+
   depends_on = [
     kubernetes_config_map_v1.fargate_logging,
     helm_release.aws_load_balancer_controller,

@@ -6,6 +6,8 @@ Esta pasta contém a aplicação que o pipeline publica no ECR:
 - `client/`: React + Vite;
 - `sidecar/`: serviço `mcp-stub` interno;
 - `Dockerfile.app` e `docker-compose.yml`: execução local.
+- `buildspec.yml`: validação, build, publicação ECR e rollout executados pelo
+  AWS CodeBuild.
 
 Em produção, `app` e `mcp-stub` são containers do mesmo Pod EKS Fargate. A API
 usa `SIDECAR_URL=http://127.0.0.1:8061`; a porta do sidecar não é publicada pelo

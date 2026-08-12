@@ -1,0 +1,76 @@
+version: 0.2
+
+env:
+  shell: bash
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 22
+    commands:
+      - |
+        set -euo pipefail
+        curl --fail --silent --show-error --location \
+          --output /usr/local/bin/kubectl \
+          "https://dl.k8s.io/release/v1.33.0/bin/linux/amd64/kubectl"
+        chmod +x /usr/local/bin/kubectl
+        kubectl version --client
+
+  pre_build:
+    commands:
+      - |
+        set -euo pipefail
+        : "${IMAGE_TAG:?CodePipeline must provide IMAGE_TAG}"
+        : "${PROJECT_NAME:?PROJECT_NAME is required}"
+        : "${EKS_CLUSTER_NAME:?EKS_CLUSTER_NAME is required}"
+        : "${KUBERNETES_NAMESPACE:?KUBERNETES_NAMESPACE is required}"
+        : "${KUBERNETES_DEPLOYMENT:?KUBERNETES_DEPLOYMENT is required}"
+        ECR_REGISTRY="$(aws sts get-caller-identity --query Account --output text).dkr.ecr.${AWS_REGION}.amazonaws.com"
+        aws ecr get-login-password --region "$AWS_REGION" |
+          docker login --username AWS --password-stdin "$ECR_REGISTRY"
+      - |
+        set -euo pipefail
+        npm ci --prefix poc/server
+        npm ci --prefix poc/sidecar
+        npm ci --prefix poc/client
+        npm run typecheck --prefix poc/server
+        npm test --prefix poc/server
+        npm run typecheck --prefix poc/sidecar
+        npm run build --prefix poc/client
+
+  build:
+    commands:
+      - |
+        set -euo pipefail
+        ECR_REGISTRY="$(aws sts get-caller-identity --query Account --output text).dkr.ecr.${AWS_REGION}.amazonaws.com"
+        docker build \
+          --file poc/Dockerfile.app \
+          --tag "$ECR_REGISTRY/$PROJECT_NAME-app:latest" \
+          --tag "$ECR_REGISTRY/$PROJECT_NAME-app:$IMAGE_TAG" \
+          poc
+        docker build \
+          --tag "$ECR_REGISTRY/$PROJECT_NAME-mcp-stub:latest" \
+          --tag "$ECR_REGISTRY/$PROJECT_NAME-mcp-stub:$IMAGE_TAG" \
+          poc/sidecar
+      - |
+        set -euo pipefail
+        docker push "$ECR_REGISTRY/$PROJECT_NAME-app:latest"
+        docker push "$ECR_REGISTRY/$PROJECT_NAME-app:$IMAGE_TAG"
+        docker push "$ECR_REGISTRY/$PROJECT_NAME-mcp-stub:latest"
+        docker push "$ECR_REGISTRY/$PROJECT_NAME-mcp-stub:$IMAGE_TAG"
+
+  post_build:
+    commands:
+      - |
+        set -euo pipefail
+        ECR_REGISTRY="$(aws sts get-caller-identity --query Account --output text).dkr.ecr.${AWS_REGION}.amazonaws.com"
+        aws eks update-kubeconfig \
+          --name "$EKS_CLUSTER_NAME" \
+          --region "$AWS_REGION"
+        kubectl --namespace "$KUBERNETES_NAMESPACE" set image \
+          "deployment/$KUBERNETES_DEPLOYMENT" \
+          "app=$ECR_REGISTRY/$PROJECT_NAME-app:$IMAGE_TAG" \
+          "mcp-stub=$ECR_REGISTRY/$PROJECT_NAME-mcp-stub:$IMAGE_TAG"
+        kubectl --namespace "$KUBERNETES_NAMESPACE" rollout status \
+          "deployment/$KUBERNETES_DEPLOYMENT" \
+          --timeout=5m

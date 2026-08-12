@@ -106,3 +106,120 @@ resource "aws_iam_role_policy_attachment" "load_balancer_controller" {
   role       = aws_iam_role.load_balancer_controller.name
   policy_arn = aws_iam_policy.load_balancer_controller.arn
 }
+
+data "aws_iam_policy_document" "codepipeline_assume" {
+  statement {
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["codepipeline.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "codepipeline" {
+  name               = "${var.project_name}-codepipeline"
+  assume_role_policy = data.aws_iam_policy_document.codepipeline_assume.json
+}
+
+data "aws_iam_policy_document" "codepipeline" {
+  statement {
+    actions = [
+      "s3:GetBucketVersioning",
+      "s3:GetObject",
+      "s3:GetObjectVersion",
+      "s3:PutObject",
+    ]
+    resources = [
+      aws_s3_bucket.pipeline_artifacts.arn,
+      "${aws_s3_bucket.pipeline_artifacts.arn}/*",
+    ]
+  }
+
+  statement {
+    actions   = ["codebuild:BatchGetBuilds", "codebuild:StartBuild"]
+    resources = [aws_codebuild_project.deploy.arn]
+  }
+
+  statement {
+    actions   = ["codeconnections:UseConnection"]
+    resources = [var.codeconnections_connection_arn]
+  }
+}
+
+resource "aws_iam_role_policy" "codepipeline" {
+  name   = "${var.project_name}-codepipeline"
+  role   = aws_iam_role.codepipeline.id
+  policy = data.aws_iam_policy_document.codepipeline.json
+}
+
+data "aws_iam_policy_document" "codebuild_assume" {
+  statement {
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["codebuild.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "codebuild" {
+  name               = "${var.project_name}-codebuild"
+  assume_role_policy = data.aws_iam_policy_document.codebuild_assume.json
+}
+
+data "aws_iam_policy_document" "codebuild" {
+  statement {
+    actions = [
+      "logs:CreateLogStream",
+      "logs:PutLogEvents",
+    ]
+    resources = ["${aws_cloudwatch_log_group.codebuild.arn}:*"]
+  }
+
+  statement {
+    actions = [
+      "s3:GetBucketVersioning",
+      "s3:GetObject",
+      "s3:GetObjectVersion",
+    ]
+    resources = [
+      aws_s3_bucket.pipeline_artifacts.arn,
+      "${aws_s3_bucket.pipeline_artifacts.arn}/*",
+    ]
+  }
+
+  statement {
+    actions   = ["ecr:GetAuthorizationToken"]
+    resources = ["*"]
+  }
+
+  statement {
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:BatchGetImage",
+      "ecr:CompleteLayerUpload",
+      "ecr:GetDownloadUrlForLayer",
+      "ecr:InitiateLayerUpload",
+      "ecr:PutImage",
+      "ecr:UploadLayerPart",
+    ]
+    resources = [
+      aws_ecr_repository.app.arn,
+      aws_ecr_repository.sidecar.arn,
+    ]
+  }
+
+  statement {
+    actions   = ["eks:DescribeCluster"]
+    resources = [aws_eks_cluster.this.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "codebuild" {
+  name   = "${var.project_name}-codebuild"
+  role   = aws_iam_role.codebuild.id
+  policy = data.aws_iam_policy_document.codebuild.json
+}

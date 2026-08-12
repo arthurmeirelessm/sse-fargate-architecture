@@ -124,7 +124,7 @@ export default function App() {
         : "Sidecar inacessível";
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,#bbf7d0,transparent_32rem),linear-gradient(135deg,#f0fdf4_0%,#dcfce7_45%,#d1fae5_100%)] px-4 py-8 text-slate-900 sm:py-12">
+    <main className="min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,#ddd6fe,transparent_32rem),linear-gradient(135deg,#faf5ff_0%,#ede9fe_45%,#ddd6fe_100%)] px-4 py-8 text-slate-900 sm:py-12">
       <div className="mx-auto max-w-6xl space-y-8">
         <header className="relative overflow-hidden rounded-[2rem] border border-white/70 bg-slate-950 px-6 py-8 text-white shadow-2xl shadow-slate-950/20 sm:px-10">
           <div className="absolute right-0 top-0 h-48 w-48 rounded-full bg-cyan-400/20 blur-3xl" />

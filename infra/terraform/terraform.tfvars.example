@@ -21,6 +21,8 @@ subdomain      = "poc"
 image_tag          = "latest"
 log_retention_days = 7
 
-# Configure para habilitar deploy pelo workflow do GitHub Actions. A role deve
-# ser a mesma exposta em AWS_ROLE_TO_ASSUME nos secrets do repositório.
-# github_actions_role_arn = "arn:aws:iam::<account-id>:role/<github-actions-role>"
+# Fonte do CodePipeline. A conexão deve estar no estado Available antes do
+# primeiro apply; o Terraform apenas a referencia, sem gerenciá-la.
+github_repository              = "arthurmeirelessm/sse-fargate-architecture"
+github_branch                  = "main"
+codeconnections_connection_arn = "arn:aws:codeconnections:us-east-1:275573050667:connection/a109a2cf-d0f0-4754-b1c8-5f5f1d64b0fc"

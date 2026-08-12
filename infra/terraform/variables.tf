@@ -22,14 +22,24 @@ variable "kubernetes_namespace" {
   default     = "sse-poc"
 }
 
-variable "github_actions_role_arn" {
-  description = "ARN da role OIDC do GitHub Actions autorizada a fazer deploy no cluster. Configure-a para habilitar o workflow de deploy."
+variable "github_repository" {
+  description = "Repositório GitHub conectado ao CodePipeline no formato owner/repository"
   type        = string
-  default     = null
+}
+
+variable "github_branch" {
+  description = "Branch GitHub monitorada pelo CodePipeline"
+  type        = string
+  default     = "main"
+}
+
+variable "codeconnections_connection_arn" {
+  description = "ARN da conexão GitHub autorizada no AWS CodeConnections"
+  type        = string
 
   validation {
-    condition     = var.github_actions_role_arn == null || can(regex("^arn:[^:]+:iam::[0-9]{12}:role/.+$", var.github_actions_role_arn))
-    error_message = "github_actions_role_arn deve ser um ARN válido de uma IAM role ou null."
+    condition     = can(regex("^arn:[^:]+:codeconnections:[^:]+:[0-9]{12}:connection/.+$", var.codeconnections_connection_arn))
+    error_message = "codeconnections_connection_arn deve ser um ARN válido de AWS CodeConnections."
   }
 }
 
